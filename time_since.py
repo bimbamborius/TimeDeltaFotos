@@ -5,7 +5,7 @@ from osxphotos import PhotoInfo
 from osxphotos.datetime_utils import datetime_naive_to_local
 from osxphotos.phototemplate import RenderOptions
 
-# Translation dictionary for pluralization and language-specific terms
+# Übersetzungswörterbuch für Pluralisierungen und sprachspezifische Begriffe
 translations = {
     'de': {
         'and': 'und',
@@ -40,16 +40,15 @@ translations = {
 }
 
 def pluralize(value: int, singular: str, plural: str) -> str:
-    """Return singular or plural based on the value."""
+    """Gibt die passende Singular- oder Pluralform zurück, basierend auf dem Wert."""
     return f"{value} {singular}" if value == 1 else f"{value} {plural}"
 
 def time_since(
     photo: PhotoInfo, options: RenderOptions, args: Optional[str] = None, **kwargs
 ) -> Union[List, str]:
     """
-    Return the time difference (years, months, days, hours, minutes) between 
-    the photo's date and the date passed as an argument in format YYYY-MM-DD HH:MM,
-    including language-specific output.
+    Gibt die Zeitdifferenz zwischen dem Datum des Fotos und dem angegebenen Datum im Format YYYY-MM-DD HH:MM zurück,
+    einschließlich sprachspezifischer Ausgabe.
     """
     if not args:
         raise ValueError(
@@ -74,55 +73,46 @@ def time_since(
     return calculate_time_difference(photo.date, date_arg, language)
 
 def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.datetime, language: str) -> str:
-    """Helper function to calculate the difference according to specified rules."""
-    
-    # Ensure start_date is earlier than end_date
-    if start_date > end_date:
-        start_date, end_date = end_date, start_date
-        
+    """Helferfunktion zur Berechnung der Differenz in Jahren, Monaten, Tagen, Stunden und Minuten zwischen zwei Daten."""
+
+    # Berechnung der Gesamtsekunden
+    total_seconds = (end_date - start_date).total_seconds()
+
     # Weniger als eine Stunde: volle Minuten zählen
     if total_seconds < 3600:
         minutes = int(total_seconds // 60)
         return pluralize(minutes, translations[language]['minute_singular'], translations[language]['minute_plural'])
 
-    if total_seconds < 86400:
-        hours = int(total_seconds // 3600)
-        return pluralize(hours, translations[language]['hour_singular'], translations[language]['hour_plural'])
-
-    # Ab dem 24. Stunden bis zum Ende des Tages: volle Stunden zählen
-    elif total_seconds < 86400 + (24 * 3600):  # 24 Stunden nach dem Ereignis
-        remaining_seconds = (86400 - (start_date.hour * 3600 + start_date.minute * 60 + start_date.second))
-        hours = int(remaining_seconds // 3600)
-        return pluralize(hours, translations[language]['hour_singular'], translations[language]['hour_plural'])
-
-    # Ab dem nächsten Tag: volle Tage zählen
-    else:
-        # Setze das Startdatum auf den Beginn des Tages
-        start_date_day_start = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        days = (end_date - start_date_day_start).days
-        return pluralize(days, translations[language]['day_singular'], translations[language]['day_plural'])
-
-    # If it's less than a week (after first day)
-    if delta.days < 7:  # Less than one week
-        return pluralize(delta.days, translations[language]['day_singular'], translations[language]['day_plural'])
-
-    if delta.days < 30:  # Less than one month
-        weeks = delta.days // 7
+    # Setze das Startdatum auf den Beginn des Tages (00:00 Uhr)
+    start_date_day_start = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Weniger als ein Monat: volle Wochen zählen
+    if total_seconds < 2628000:
+        # Berechne die Anzahl der vollen Wochen ab Tagesbeginn
+        weeks = (end_date - start_date_day_start).days // 7
         return pluralize(weeks, translations[language]['week_singular'], translations[language]['week_plural'])
 
-    elif delta.days < 365:  # Less than one year
-        months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
+    # Weniger als ein Jahr: volle Monate zählen
+    elif total_seconds < 31536000:
+        # Berechne die Anzahl der vollen Monate ab Tagesbeginn
+        months = (end_date.year - start_date_day_start.year) * 12 + (end_date.month - start_date_day_start.month)
+        if end_date.day < start_date_day_start.day:
+            months -= 1
         return pluralize(months, translations[language]['month_singular'], translations[language]['month_plural'])
 
-    else:  # More than one year
-        years = end_date.year - start_date.year
-        months = end_date.month - start_date.month
+    # Mehr als ein Jahr: Jahre und Monate zählen
+    else:
+        years = end_date.year - start_date_day_start.year
+        months = end_date.month - start_date_day_start.month
+
         if months < 0:
             years -= 1
             months += 12
+        
         years_str = pluralize(years, translations[language]['year_singular'], translations[language]['year_plural'])
         months_str = pluralize(months, translations[language]['month_singular'], translations[language]['month_plural'])
+
         return f"{years_str} {translations[language]['and']} {months_str}"
 
-# Example for osxphotos usage:
+# Beispiel für die Verwendung in osxphotos:
 # osxphotos query --quiet --print "{function:time_since.py::time_since(2020-01-01 14:00,de)}"
