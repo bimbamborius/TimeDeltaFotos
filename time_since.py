@@ -79,36 +79,32 @@ def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.
     # Ensure start_date is earlier than end_date
     if start_date > end_date:
         start_date, end_date = end_date, start_date
-
-    # Time at which we stop counting for less than 24 hours
-    end_of_first_day = start_date.replace(hour=23, minute=59)
-
-    # Calculate delta for the given period
-    if end_date <= end_of_first_day:  # Less than 24 hours
-        total_seconds = (end_date - start_date).total_seconds()
-        if total_seconds < 60:  # Less than one minute
-            return ""
+        
+    # Weniger als eine Stunde: volle Minuten zählen
+    if total_seconds < 3600:
         minutes = int(total_seconds // 60)
         return pluralize(minutes, translations[language]['minute_singular'], translations[language]['minute_plural'])
-    
-    # Adjust end date to the end of the first day if it's less than 24 hours
-    if end_date < end_of_first_day:
-        end_date = end_of_first_day
 
-    delta = end_date - start_date
-
-    if delta.days == 0:  # If we are still within the same day (now counting hours)
-        hours = int(delta.total_seconds() // 3600)
+    if total_seconds < 86400:
+        hours = int(total_seconds // 3600)
         return pluralize(hours, translations[language]['hour_singular'], translations[language]['hour_plural'])
+
+    # Ab dem 24. Stunden bis zum Ende des Tages: volle Stunden zählen
+    elif total_seconds < 86400 + (24 * 3600):  # 24 Stunden nach dem Ereignis
+        remaining_seconds = (86400 - (start_date.hour * 3600 + start_date.minute * 60 + start_date.second))
+        hours = int(remaining_seconds // 3600)
+        return pluralize(hours, translations[language]['hour_singular'], translations[language]['hour_plural'])
+
+    # Ab dem nächsten Tag: volle Tage zählen
+    else:
+        # Setze das Startdatum auf den Beginn des Tages
+        start_date_day_start = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        days = (end_date - start_date_day_start).days
+        return pluralize(days, translations[language]['day_singular'], translations[language]['day_plural'])
 
     # If it's less than a week (after first day)
     if delta.days < 7:  # Less than one week
         return pluralize(delta.days, translations[language]['day_singular'], translations[language]['day_plural'])
-
-    # For intervals longer than one week
-    # Adjust to midnight of the current day to count full weeks
-    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_date = end_date.replace(hour=0, minute=0)
 
     if delta.days < 30:  # Less than one month
         weeks = delta.days // 7
