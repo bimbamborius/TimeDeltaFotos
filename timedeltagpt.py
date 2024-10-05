@@ -1,3 +1,11 @@
+import datetime
+import pathlib
+from typing import List, Optional, Union
+
+from osxphotos import PhotoInfo
+from osxphotos.datetime_utils import datetime_naive_to_local
+from osxphotos.phototemplate import RenderOptions
+
 from datetime import datetime
 
 def pluralize(value: int, singular: str, plural: str) -> str:
