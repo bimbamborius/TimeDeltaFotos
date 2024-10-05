@@ -15,6 +15,8 @@ translations = {
         'hour_plural': 'Stunden',
         'day_singular': 'Tag',
         'day_plural': 'Tage',
+        'week_singular': 'Woche',
+        'week_plural': 'Wochen',
         'month_singular': 'Monat',
         'month_plural': 'Monate',
         'year_singular': 'Jahr',
@@ -28,6 +30,8 @@ translations = {
         'hour_plural': 'hours',
         'day_singular': 'day',
         'day_plural': 'days',
+        'week_singular': 'week',
+        'week_plural': 'weeks',
         'month_singular': 'month',
         'month_plural': 'months',
         'year_singular': 'year',
@@ -71,43 +75,48 @@ def time_since(
 
 def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.datetime, language: str) -> str:
     """Helper function to calculate the difference according to specified rules."""
+    
     # Ensure start_date is earlier than end_date
     if start_date > end_date:
         start_date, end_date = end_date, start_date
 
-    # Remove time components to compare dates correctly
-    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Time at which we stop counting for less than 24 hours
+    end_of_first_day = start_date.replace(hour=23, minute=59)
+
+    # Calculate delta for the given period
+    if end_date <= end_of_first_day:  # Less than 24 hours
+        total_seconds = (end_date - start_date).total_seconds()
+        if total_seconds < 60:  # Less than one minute
+            return ""
+        minutes = int(total_seconds // 60)
+        return pluralize(minutes, translations[language]['minute_singular'], translations[language]['minute_plural'])
+    
+    # Adjust end date to the end of the first day if it's less than 24 hours
+    if end_date < end_of_first_day:
+        end_date = end_of_first_day
 
     delta = end_date - start_date
-    total_seconds = delta.total_seconds()
-    lang = translations[language]
 
-    # Calculate differences based on specified criteria
-    if total_seconds < 3600:  # Less than one hour
-        minutes = int((end_date - start_date).total_seconds() // 60)
-        return pluralize(minutes, lang['minute_singular'], lang['minute_plural'])
-    
-    elif total_seconds < 86400:  # Less than one day (but after the first hour)
-        hours = int((end_date - start_date).total_seconds() // 3600)
-        return pluralize(hours, lang['hour_singular'], lang['hour_plural'])
+    if delta.days == 0:  # If we are still within the same day (now counting hours)
+        hours = int(delta.total_seconds() // 3600)
+        return pluralize(hours, translations[language]['hour_singular'], translations[language]['hour_plural'])
 
-    elif total_seconds < 604800:  # Less than one week
-        days = (end_date - start_date).days
-        return pluralize(days, lang['day_singular'], lang['day_plural'])
+    # If it's less than a week (after first day)
+    if delta.days < 7:  # Less than one week
+        return pluralize(delta.days, translations[language]['day_singular'], translations[language]['day_plural'])
 
     # For intervals longer than one week
     # Adjust to midnight of the current day to count full weeks
-    start_date = start_date.replace(hour=0, minute=0)
+    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
     end_date = end_date.replace(hour=0, minute=0)
 
-    if total_seconds < 2628000:  # Less than one month
-        weeks = (end_date - start_date).days // 7
-        return pluralize(weeks, lang['week_singular'], lang['week_plural'])
+    if delta.days < 30:  # Less than one month
+        weeks = delta.days // 7
+        return pluralize(weeks, translations[language]['week_singular'], translations[language]['week_plural'])
 
-    elif total_seconds < 31536000:  # Less than one year
+    elif delta.days < 365:  # Less than one year
         months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
-        return pluralize(months, lang['month_singular'], lang['month_plural'])
+        return pluralize(months, translations[language]['month_singular'], translations[language]['month_plural'])
 
     else:  # More than one year
         years = end_date.year - start_date.year
@@ -115,9 +124,9 @@ def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.
         if months < 0:
             years -= 1
             months += 12
-        years_str = pluralize(years, lang['year_singular'], lang['year_plural'])
-        months_str = pluralize(months, lang['month_singular'], lang['month_plural'])
-        return f"{years_str} {lang['and']} {months_str}"
+        years_str = pluralize(years, translations[language]['year_singular'], translations[language]['year_plural'])
+        months_str = pluralize(months, translations[language]['month_singular'], translations[language]['month_plural'])
+        return f"{years_str} {translations[language]['and']} {months_str}"
 
 # Example for osxphotos usage:
 # osxphotos query --quiet --print "{function:time_since.py::time_since(2020-01-01 14:00,de)}"
