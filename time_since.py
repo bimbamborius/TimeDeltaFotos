@@ -15,8 +15,6 @@ translations = {
         'hour_plural': 'Stunden',
         'day_singular': 'Tag',
         'day_plural': 'Tage',
-        'week_singular': 'Woche',
-        'week_plural': 'Wochen',
         'month_singular': 'Monat',
         'month_plural': 'Monate',
         'year_singular': 'Jahr',
@@ -30,8 +28,6 @@ translations = {
         'hour_plural': 'hours',
         'day_singular': 'day',
         'day_plural': 'days',
-        'week_singular': 'week',
-        'week_plural': 'weeks',
         'month_singular': 'month',
         'month_plural': 'months',
         'year_singular': 'year',
@@ -47,7 +43,7 @@ def time_since(
     photo: PhotoInfo, options: RenderOptions, args: Optional[str] = None, **kwargs
 ) -> Union[List, str]:
     """
-    Return the time difference (years, months, weeks, days, hours, minutes) between 
+    Return the time difference (years, months, days, hours, minutes) between 
     the photo's date and the date passed as an argument in format YYYY-MM-DD HH:MM,
     including language-specific output.
     """
@@ -74,69 +70,54 @@ def time_since(
     return calculate_time_difference(photo.date, date_arg, language)
 
 def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.datetime, language: str) -> str:
-    """Helper function to calculate the time difference based on the requirements."""
+    """Helper function to calculate the difference according to specified rules."""
+    # Ensure start_date is earlier than end_date
     if start_date > end_date:
         start_date, end_date = end_date, start_date
 
-    # Reset times for days-based calculations as required by the specifications
-    start_of_day = lambda dt: dt.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+    # Remove time components to compare dates correctly
+    start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
     delta = end_date - start_date
     total_seconds = delta.total_seconds()
-
     lang = translations[language]
 
-    # Case 1: Less than an hour, show only full minutes
-    if total_seconds < 3600:
-        minutes = int(total_seconds // 60)
+    # Calculate differences based on specified criteria
+    if total_seconds < 3600:  # Less than one hour
+        minutes = int((end_date - start_date).total_seconds() // 60)
         return pluralize(minutes, lang['minute_singular'], lang['minute_plural'])
-
-    # Case 2: Less than until the end of the first day (23:59), show only full hours
-    elif total_seconds < 86400:  # 86400 seconds in a day
-        hours = int(total_seconds // 3600)
+    
+    elif total_seconds < 86400:  # Less than one day (but after the first hour)
+        hours = int((end_date - start_date).total_seconds() // 3600)
         return pluralize(hours, lang['hour_singular'], lang['hour_plural'])
 
-    # Case 3: Less than a week, count full days (from day start at 00:00)
-    elif total_seconds < 604800:  # 604800 seconds in a week
-        start_date = start_of_day(start_date)
-        end_date = start_of_day(end_date)
-        delta = end_date - start_date
-        days = delta.days
+    elif total_seconds < 604800:  # Less than one week
+        days = (end_date - start_date).days
         return pluralize(days, lang['day_singular'], lang['day_plural'])
 
-    # Case 4: Less than a month, count full weeks (from day start at 00:00)
-    elif total_seconds < 2628000:  # Approx. seconds in a month (30.44 days)
-        start_date = start_of_day(start_date)
-        end_date = start_of_day(end_date)
-        delta = end_date - start_date
-        weeks = delta.days // 7
+    # For intervals longer than one week
+    # Adjust to midnight of the current day to count full weeks
+    start_date = start_date.replace(hour=0, minute=0)
+    end_date = end_date.replace(hour=0, minute=0)
+
+    if total_seconds < 2628000:  # Less than one month
+        weeks = (end_date - start_date).days // 7
         return pluralize(weeks, lang['week_singular'], lang['week_plural'])
 
-    # Case 5: Less than a year, count full months (from day start at 00:00)
-    elif total_seconds < 31536000:  # Approx. seconds in a year
-        start_date = start_of_day(start_date)
-        end_date = start_of_day(end_date)
-        delta = end_date - start_date
-        months = delta.days // 30  # Approx. days in a month
+    elif total_seconds < 31536000:  # Less than one year
+        months = (end_date.year - start_date.year) * 12 + (end_date.month - start_date.month)
         return pluralize(months, lang['month_singular'], lang['month_plural'])
 
-    # Case 6: More than a year, count years and months (from day start at 00:00)
-    else:
-        start_date = start_of_day(start_date)
-        end_date = start_of_day(end_date)
-        delta = end_date - start_date
-
-        years = delta.days // 365
-        remaining_days = delta.days % 365
-        months = remaining_days // 30  # Approx. days in a month
-
+    else:  # More than one year
+        years = end_date.year - start_date.year
+        months = end_date.month - start_date.month
+        if months < 0:
+            years -= 1
+            months += 12
         years_str = pluralize(years, lang['year_singular'], lang['year_plural'])
         months_str = pluralize(months, lang['month_singular'], lang['month_plural'])
-
-        if months > 0:
-            return f"{years_str} {lang['and']} {months_str}"
-        else:
-            return years_str
+        return f"{years_str} {lang['and']} {months_str}"
 
 # Example for osxphotos usage:
 # osxphotos query --quiet --print "{function:time_since.py::time_since(2020-01-01 14:00,de)}"
