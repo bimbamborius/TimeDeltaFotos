@@ -91,8 +91,8 @@ def calculate_time_difference(start_date: datetime.datetime, end_date: datetime.
         minutes = int(total_seconds // 60)
         return pluralize(minutes, lang['minute_singular'], lang['minute_plural'])
 
-    # Case 2: Less than until the end of the second day (23:59), show only full hours
-    elif total_seconds < 86400 * 2:  # 86400 seconds in a day
+    # Case 2: Less than until the end of the first day (23:59), show only full hours
+    elif total_seconds < 86400:  # 86400 seconds in a day
         hours = int(total_seconds // 3600)
         return pluralize(hours, lang['hour_singular'], lang['hour_plural'])
 
